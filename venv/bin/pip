@@ -1,4 +1,4 @@
-#!/Users/lucca-amodio/Documents/PIE/PIE_trajet/venv/bin/python3.14
+#!/home/vizanca/PIE/venv/bin/python3.14
 import sys
 from pip._internal.cli.main import main
 if __name__ == '__main__':
