@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Optional
 from enum import Enum
 
-# --- ESTRUTURAS DE DADOS ---
+# --- STRUCTURES DE DONNÉES ---
 
 @dataclass
 class Vector2:
@@ -37,7 +37,7 @@ class Obstacle:
 # --- GERADOR DE ROTA ---
 
 def generate_lemniscate_points(p1: Vector2, p2: Vector2, num_points=120, margin=80) -> List[Vector2]:
-    """Gera a geometria do 8"""
+    """Génère la géométrie du 8"""
     points = []
     midpoint = (p1 + p2) * 0.5
     diff = p2 - p1
@@ -56,7 +56,7 @@ def generate_lemniscate_points(p1: Vector2, p2: Vector2, num_points=120, margin=
         
     return points
 
-# --- LÓGICA DO BARCO ---
+# --- LOGIQUE DU BATEAU ---
 
 class BlueBoat:
     def __init__(self, x, y):
@@ -76,11 +76,11 @@ class BlueBoat:
         self.current_path_index = 0 
         self.has_planned_lap = False
         
-        # Controle de logs para não floodar o terminal
+        # Contrôle des logs pour ne pas inonder le terminal
         self.log_timer = 0
 
     def _reorder_path_from_entry(self, original_path: List[Vector2]):
-        """Reorganiza a rota para começar no ponto mais próximo"""
+        """Réorganise la route pour commencer au point le plus proche"""
         if not original_path: return
 
         closest_dist = float('inf')
@@ -95,7 +95,7 @@ class BlueBoat:
         part1 = original_path[entry_idx:]
         part2 = original_path[:entry_idx]
         
-        # Cria a rota fechada
+        # Crée la route fermée
         self.active_path = part1 + part2 + [original_path[entry_idx]]
         
         self.current_path_index = 0
@@ -106,11 +106,11 @@ class BlueBoat:
         print(f"[PLANEJADOR] Nova rota ativa tem {len(self.active_path)} waypoints.")
 
     def get_target_point(self) -> Vector2:
-        """Pega o alvo na rota ativa"""
+        """Obtient la cible sur la route active"""
         path = self.active_path
         if not path: return self.position
 
-        # Avança o índice se perto
+        # Avance l'indice si proche
         while self.current_path_index < len(path) - 1:
             curr_p = path[self.current_path_index]
             dist = self.position.dist(curr_p)
@@ -120,8 +120,8 @@ class BlueBoat:
             else:
                 break 
         
-        # Lookahead limitado ao tamanho da lista (Clamping)
-        # Se chegar no fim, ele trava no último ponto
+        # Lookahead limité à la taille de la liste (Clamping)
+        # S'il arrive à la fin, il se bloque au dernier point
         lookahead_idx = min(self.current_path_index + 4, len(path) - 1)
         target_point = path[lookahead_idx]
         
@@ -130,24 +130,24 @@ class BlueBoat:
     def update(self, original_path_template: List[Vector2], obstacles: List[Obstacle], dt: float):
         if not original_path_template: return False
 
-        # 1. Planejamento (Uma única vez)
+        # 1. Planification (Une seule fois)
         if not self.has_planned_lap:
             self._reorder_path_from_entry(original_path_template)
 
-        # 2. Pega alvo
+        # 2. Obtient la cible
         target_pos = self.get_target_point()
         
-        # Estado Visual
+        # État Visuel
         dist_to_path = self.position.dist(target_pos)
         if dist_to_path > self.lookahead_dist * 2:
             self.state = BoatState.APPROACHING 
         else:
             self.state = BoatState.TRACKING
 
-        # 3. Navegação
+        # 3. Navigation
         nav_vector = (target_pos - self.position).normalize()
 
-        # 4. Desvio Tangencial Inteligente
+        # 4. Évitement Tangentiel Intelligent
         avoidance_vec = Vector2(0,0)
         max_avoid_strength = 0.0
 
@@ -179,14 +179,14 @@ class BlueBoat:
                         print(f"[SENSOR] Desviando de obstáculo! Distância: {dist:.1f}px")
                         self.log_timer = 0
 
-        # 5. Vetor Final
+        # 5. Vecteur Final
         if avoidance_vec.magnitude() > 0:
             blend_factor = 0.8 if max_avoid_strength > 0.5 else 0.4
             final_dir = (nav_vector * (1.0 - blend_factor) + avoidance_vec * blend_factor).normalize()
         else:
             final_dir = nav_vector
 
-        # 6. Física
+        # 6. Physique
         desired_heading = math.atan2(final_dir.y, final_dir.x)
         angle_diff = desired_heading - self.heading
         while angle_diff > math.pi: angle_diff -= 2*math.pi
@@ -201,10 +201,10 @@ class BlueBoat:
         self.velocity = Vector2(math.cos(self.heading), math.sin(self.heading)) * speed
         self.position = self.position + (self.velocity * dt * 20)
         
-        # --- LÓGICA DE FIM DE MISSÃO ---
-        # Só termina se:
-        # 1. O índice da rota já chegou no final (Lookahead parou)
-        # 2. E o barco está fisicamente perto do último ponto (< 20px)
+        # --- LOGIQUE DE FIN DE MISSION ---
+        # Ne se termine que si:
+        # 1. L'indice de la route a atteint la fin (Lookahead s'est arrêté)
+        # 2. Et le bateau est physiquement près du dernier point (< 20px)
         
         index_reached_end = self.current_path_index >= len(self.active_path) - 2
         dist_to_finish_line = self.position.dist(self.active_path[-1])

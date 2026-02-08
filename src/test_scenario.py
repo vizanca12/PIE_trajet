@@ -4,12 +4,12 @@ import math
 import sys
 from blueboat_model import BlueBoat, Obstacle, Vector2, generate_lemniscate_points
 
-# --- CONFIGURAÇÕES ---
+# --- CONFIGURATIONS ---
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 700
 FPS = 60
 
-# Cores
+# Couleurs
 COLOR_BG = (15, 25, 40)
 COLOR_PATH = (255, 255, 255, 30)
 COLOR_TARGET = (0, 255, 255)
@@ -39,10 +39,10 @@ class ScenarioSimulator:
         self.obstacles = []
         
         print("\n" + "="*50)
-        print("GERANDO NOVO CENÁRIO DE TESTE")
+        print("GÉNÉRATION D'UN NOUVEAU SCÉNARIO DE TEST")
         print("="*50)
         
-        # 1. Boias
+        # 1. Bouées
         margin = 180
         b1 = Vector2(random.randint(margin, WINDOW_WIDTH-margin), 
                      random.randint(margin, WINDOW_HEIGHT-margin))
@@ -55,13 +55,13 @@ class ScenarioSimulator:
         b2.y = max(100, min(WINDOW_HEIGHT-100, b2.y))
         
         self.obstacles = [Obstacle(b1, 15, True), Obstacle(b2, 15, True)]
-        print(f"[CENÁRIO] Boia 1 posicionada em {b1}")
-        print(f"[CENÁRIO] Boia 2 posicionada em {b2}")
+        print(f"[SCÉNARIO] Bouée 1 positionnée en {b1}")
+        print(f"[SCÉNARIO] Bouée 2 positionnée en {b2}")
         
-        # 2. Rota
+        # 2. Route
         self.waypoints = generate_lemniscate_points(b1, b2)
         
-        # 3. Barco
+        # 3. Bateau
         spawn_type = random.choice(["corner", "random"])
         if spawn_type == "corner":
             spawn_pos = Vector2(random.choice([50, WINDOW_WIDTH-50]), 
@@ -73,8 +73,8 @@ class ScenarioSimulator:
         self.boat = BlueBoat(spawn_pos.x, spawn_pos.y)
         self.boat.heading = random.uniform(0, 6.28)
         
-        print(f"[CENÁRIO] Barco lançado em {spawn_pos} (Fora da rota)")
-        print(f"[STATUS] Aguardando o barco encontrar a rota...")
+        print(f"[SCÉNARIO] Bateau lancé en {spawn_pos} (En dehors de la route)")
+        print(f"[STATUS] En attente que le bateau trouve la route...")
 
     def run(self):
         while True:
@@ -94,33 +94,33 @@ class ScenarioSimulator:
                 finished = self.boat.update(self.waypoints, self.obstacles, dt)
                 if finished: 
                     self.state = "FINISHED"
-                    print("\n[SUCESSO] O barco chegou fisicamente ao destino final!")
+                    print("\n[SUCCÈS] Le bateau est arrivé physiquement à la destination finale!")
                     print("-" * 50)
 
-            # --- DESENHO ---
+            # --- DESSIN ---
             self.screen.fill(COLOR_BG)
             
-            # Rota Template
+            # Route Modèle
             if len(self.waypoints) > 1:
                 pts = [p.to_tuple() for p in self.waypoints]
                 pygame.draw.lines(self.screen, COLOR_PATH, False, pts, 2)
             
-            # Rota Ativa (Que o barco realmente está seguindo) - Debug em Verde
+            # Route Active (Que le bateau suit réellement) - Debug en Vert
             if self.boat.active_path:
                 active_pts = [p.to_tuple() for p in self.boat.active_path]
                 if len(active_pts) > 1:
                     pygame.draw.lines(self.screen, (0, 255, 0), False, active_pts, 1)
                 
-                # Desenha o Ponto Final Real
+                # Dessine le Point Final Réel
                 last_pt = self.boat.active_path[-1].to_tuple()
-                pygame.draw.circle(self.screen, (255, 0, 0), last_pt, 6) # Ponto Vermelho = CHEGADA
+                pygame.draw.circle(self.screen, (255, 0, 0), last_pt, 6) # Point Rouge = ARRIVÉE
 
-            # Obstáculos
+            # Obstacles
             for obs in self.obstacles:
                 pygame.draw.circle(self.screen, COLOR_BUOY, obs.position.to_tuple(), int(obs.radius))
                 pygame.draw.circle(self.screen, (255, 255, 255), obs.position.to_tuple(), int(obs.radius), 2)
 
-            # Mira
+            # Visée
             target = self.boat.get_target_point()
             pygame.draw.line(self.screen, (255, 255, 255, 50), self.boat.position.to_tuple(), target.to_tuple(), 1)
             pygame.draw.circle(self.screen, COLOR_TARGET, target.to_tuple(), 4)
@@ -134,11 +134,11 @@ class ScenarioSimulator:
             if self.boat.active_path:
                 prog_val = int((self.boat.current_path_index / len(self.boat.active_path))*100)
             
-            # Mostra se está esperando o barco chegar
+            # Affiche si le bateau attend d'arriver
             if prog_val >= 98 and self.state == "RUNNING":
-                 prog = self.font.render(f"Progresso: {prog_val}% (Aguardando chegada física...)", True, (255, 200, 50))
+                 prog = self.font.render(f"Progression: {prog_val}% (En attente d'arrivée physique...)", True, (255, 200, 50))
             else:
-                 prog = self.font.render(f"Progresso: {prog_val}%", True, (200, 200, 200))
+                 prog = self.font.render(f"Progression: {prog_val}%", True, (200, 200, 200))
 
             self.screen.blit(status, (20, 20))
             self.screen.blit(prog, (20, 45))
@@ -161,10 +161,10 @@ class ScenarioSimulator:
         overlay.fill(COLOR_UI_BG)
         self.screen.blit(overlay, (0,0))
         
-        txt = self.big_font.render("MISSÃO CUMPRIDA", True, (100, 255, 100))
+        txt = self.big_font.render("MISSION ACCOMPLIE", True, (100, 255, 100))
         self.screen.blit(txt, txt.get_rect(center=(WINDOW_WIDTH//2, WINDOW_HEIGHT//2 - 60)))
         
-        for btn, text in [(self.btn_new, "Nova Rota"), (self.btn_exit, "Sair")]:
+        for btn, text in [(self.btn_new, "Nouvelle Route"), (self.btn_exit, "Quitter")]:
             col = (60, 180, 100) if btn.collidepoint(mouse) else (50, 50, 50)
             pygame.draw.rect(self.screen, col, btn, border_radius=8)
             t = self.font.render(text, True, (255, 255, 255))
