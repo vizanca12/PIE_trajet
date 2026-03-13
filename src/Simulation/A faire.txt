@@ -1,0 +1,8 @@
+
+Modéliser les autres courses [1 personne] Clément
+Utiliser les classes dans le code dwa [2 personnes] (Enzo -> Rayon de courbure), Ewen
+Changer la détection pour inclure des positions de bouées non-sures (avec un algo de navigation) [3 personnes] Julien, Yuheng, Ewen
+Faire la détection des obstacles Blueboat -> Thomas
+
+
+Pour lancer correctement la simulation, il faut lancer les fichiers depuis le dossier Simulation extérieur (là où se trouve ce fichier)

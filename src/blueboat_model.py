@@ -33,6 +33,14 @@ class Obstacle:
     position: Vector2
     radius: float
     is_buoy: bool = False
+    velocity: Optional[Vector2] = None
+
+    def is_moving(self) -> bool:
+        return self.velocity is not None and self.velocity.magnitude() > 0
+
+    def step(self, dt: float):
+        if self.is_moving():
+            self.position = self.position + (self.velocity * dt)
 
 # --- GERADOR DE ROTA ---
 
@@ -63,6 +71,7 @@ class BlueBoat:
         self.position = Vector2(x, y)
         self.velocity = Vector2(0, 0)
         self.heading = 0
+        self.collision_radius = 14
         
         self.max_speed = 4.0
         self.turn_rate = 3.5
@@ -78,6 +87,13 @@ class BlueBoat:
         
         # Contrôle des logs pour ne pas inonder le terminal
         self.log_timer = 0
+
+    def force_replan(self, original_path_template: List[Vector2]):
+        """Força o recálculo da rota a partir da posição atual."""
+        self.has_planned_lap = False
+        self.current_path_index = 0
+        self.active_path = []
+        self._reorder_path_from_entry(original_path_template)
 
     def _reorder_path_from_entry(self, original_path: List[Vector2]):
         """Réorganise la route pour commencer au point le plus proche"""
@@ -105,24 +121,48 @@ class BlueBoat:
         print(f"[PLANEJADOR] Ponto de entrada detectado no índice {entry_idx}.")
         print(f"[PLANEJADOR] Nova rota ativa tem {len(self.active_path)} waypoints.")
 
+    def _find_closest_path_index(self) -> int:
+        """Procura o ponto mais próximo perto do progresso atual para evitar saltos na rota."""
+        if not self.active_path:
+            return 0
+
+        start_idx = max(0, self.current_path_index - 8)
+        end_idx = min(len(self.active_path) - 1, self.current_path_index + 24)
+
+        closest_idx = self.current_path_index
+        closest_dist = float("inf")
+
+        for index in range(start_idx, end_idx + 1):
+            distance = self.position.dist(self.active_path[index])
+            if distance < closest_dist:
+                closest_dist = distance
+                closest_idx = index
+
+        return closest_idx
+
+    def _advance_target_index(self, start_idx: int) -> int:
+        """Avança ao longo da polilinha até atingir a distância de lookahead."""
+        if not self.active_path:
+            return 0
+
+        travelled = 0.0
+        target_idx = start_idx
+
+        while target_idx < len(self.active_path) - 1 and travelled < self.lookahead_dist:
+            current_point = self.active_path[target_idx]
+            next_point = self.active_path[target_idx + 1]
+            travelled += current_point.dist(next_point)
+            target_idx += 1
+
+        return target_idx
+
     def get_target_point(self) -> Vector2:
         """Obtient la cible sur la route active"""
         path = self.active_path
         if not path: return self.position
 
-        # Avance l'indice si proche
-        while self.current_path_index < len(path) - 1:
-            curr_p = path[self.current_path_index]
-            dist = self.position.dist(curr_p)
-            
-            if dist < self.lookahead_dist:
-                self.current_path_index += 1
-            else:
-                break 
-        
-        # Lookahead limité à la taille de la liste (Clamping)
-        # S'il arrive à la fin, il se bloque au dernier point
-        lookahead_idx = min(self.current_path_index + 4, len(path) - 1)
+        self.current_path_index = self._find_closest_path_index()
+        lookahead_idx = self._advance_target_index(self.current_path_index)
         target_point = path[lookahead_idx]
         
         return target_point
@@ -148,32 +188,41 @@ class BlueBoat:
         nav_vector = (target_pos - self.position).normalize()
 
         # 4. Évitement Tangentiel Intelligent
-        avoidance_vec = Vector2(0,0)
+        avoidance_vec = Vector2(0, 0)
         max_avoid_strength = 0.0
+        lookahead_seconds = 1.5  # prever onde obstáculos móveis estarão
 
         for obs in obstacles:
-            to_obs = obs.position - self.position
+            # Para obstáculos móveis, usar posição futura prevista
+            if obs.is_moving() and obs.velocity is not None:
+                predicted_pos = obs.position + (obs.velocity * lookahead_seconds)
+            else:
+                predicted_pos = obs.position
+
+            to_obs = predicted_pos - self.position
             dist = to_obs.magnitude() - obs.radius
-            
+
             if dist < self.sensor_range:
                 to_obs_norm = to_obs.normalize()
-                is_in_front = (to_obs_norm.x * nav_vector.x + to_obs_norm.y * nav_vector.y) > 0.3
-                
-                if is_in_front:
+                # Cone ampliado: detecta obstáculos frontais E laterais (-0.2 ≈ 100°)
+                is_threatening = (to_obs_norm.x * nav_vector.x + to_obs_norm.y * nav_vector.y) > -0.2
+
+                if is_threatening:
                     strength = (self.sensor_range - dist) / self.sensor_range
                     max_avoid_strength = max(max_avoid_strength, strength)
-                    
+
                     tangent_left = Vector2(-to_obs_norm.y, to_obs_norm.x)
                     tangent_right = Vector2(to_obs_norm.y, -to_obs_norm.x)
-                    
+
                     dot_left = tangent_left.x * nav_vector.x + tangent_left.y * nav_vector.y
                     dot_right = tangent_right.x * nav_vector.x + tangent_right.y * nav_vector.y
-                    
+
                     best_escape = tangent_left if dot_left > dot_right else tangent_right
-                    avoidance_vec = avoidance_vec + (best_escape * strength * 3.0)
+                    # Força de desvio maior quando muito próximo
+                    push_strength = 4.5 if dist < self.sensor_range * 0.35 else 2.8
+                    avoidance_vec = avoidance_vec + (best_escape * strength * push_strength)
                     self.state = BoatState.AVOIDING
-                    
-                    # Log periódico de perigo
+
                     self.log_timer += 1
                     if self.log_timer > 30:
                         print(f"[SENSOR] Desviando de obstáculo! Distância: {dist:.1f}px")
@@ -181,7 +230,8 @@ class BlueBoat:
 
         # 5. Vecteur Final
         if avoidance_vec.magnitude() > 0:
-            blend_factor = 0.8 if max_avoid_strength > 0.5 else 0.4
+            # Quanto mais próximo, maior a prioridade do desvio sobre a rota
+            blend_factor = min(0.92, 0.55 + max_avoid_strength * 0.42)
             final_dir = (nav_vector * (1.0 - blend_factor) + avoidance_vec * blend_factor).normalize()
         else:
             final_dir = nav_vector
@@ -197,7 +247,9 @@ class BlueBoat:
             angle_diff = turn_step if angle_diff > 0 else -turn_step
         self.heading += angle_diff
         
-        speed = self.max_speed * (1.0 - abs(angle_diff)/math.pi)
+        # Velocidade mínima de 30% para o barco não parar ao desviar
+        raw_speed = self.max_speed * (1.0 - abs(angle_diff)/math.pi)
+        speed = max(self.max_speed * 0.30, raw_speed)
         self.velocity = Vector2(math.cos(self.heading), math.sin(self.heading)) * speed
         self.position = self.position + (self.velocity * dt * 20)
         
